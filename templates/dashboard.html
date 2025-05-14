@@ -1,0 +1,81 @@
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script>{% extends "base.html" %}
+{% block content %}
+    <section class="dashboard">
+        <h2>Panel de Administración</h2>
+        <h3>Agregar Nuevo Proyecto</h3>
+        <form action="{{ url_for('dashboard') }}" method="post" enctype="multipart/form-data">
+            <label for="titulo">Título:</label>
+            <input type="text" id="titulo" name="titulo" required>
+            <label for="descripcion">Descripción:</label>
+            <textarea id="descripcion" name="descripcion" required></textarea>
+            <label for="imagen">Imagen:</label>
+            <input type="file" id="imagen" name="imagen" accept="image/*" required>
+            <button type="submit">Agregar Proyecto</button>
+        </form>
+        <h3>Proyectos Actuales</h3>
+        <div class="proyectos">
+            {% for proyecto in proyectos %}
+                <div class="proyecto">
+                    <img src="{{ url_for('static', filename='images/' + proyecto.imagen) }}" alt="{{ proyecto.titulo }}">
+                    <h4>{{ proyecto.titulo }}</h4>
+                    <p>{{ proyecto.descripcion }}</p>
+                    <a href="{{ url_for('eliminar_proyecto', id=proyecto.id) }}" class="eliminar">Eliminar</a>
+                </div>
+            {% endfor %}
+        </div>
+        <h3>Mensajes Recibidos</h3>
+        <table>
+            <tr>
+                <th>Nombre</th>
+                <th>Email</th>
+                <th>Mensaje</th>
+            </tr>
+            {% for mensaje in mensajes %}
+                <tr>
+                    <td>{{ mensaje.nombre }}</td>
+                    <td>{{ mensaje.email }}</td>
+                    <td>{{ mensaje.mensaje }}</td>
+                </tr>
+            {% endfor %}
+        </table>
+    </section>
+{% endblock %}
